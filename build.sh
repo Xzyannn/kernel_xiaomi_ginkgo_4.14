@@ -1,61 +1,77 @@
-#!/bin/bash
-#
-# Compile script for QuicksilveR kernel
-# Copyright (C) 2020-2021 Adithya R.
+#!/usr/bin/env bash
 
-SECONDS=0 # builtin bash timer
-ZIPNAME="QuicksilveRV2-ginkgo-$(date '+%Y%m%d-%H%M').zip"
-TC_DIR="$HOME/tc/proton-clang"
-DEFCONFIG="vendor/ginkgo-perf_defconfig"
+sudo ln -sf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
+bold=$(tput bold)
+normal=$(tput sgr0)
 
-export PATH="$TC_DIR/bin:$PATH"
+# Scrip option
+while (( ${#} )); do
+    case ${1} in
+        "-Z"|"--zip") ZIP=true ;;
+    esac
+    shift
+done
 
-if ! [ -d "$TC_DIR" ]; then
-echo "Proton clang not found! Cloning to $TC_DIR..."
-if ! git clone -q --depth=1 --single-branch https://github.com/kdrag0n/proton-clang $TC_DIR; then
-echo "Cloning failed! Aborting..."
-exit 1
+[[ -z ${ZIP} ]] && { echo "${bold}Gunakan -Z atau --zip Untuk Membuat Zip Kernel Installer${normal}"; }
+
+# ENV
+CONFIG=vendor/ginkgo-perf_defconfig
+KERNEL_DIR=$(pwd)
+PARENT_DIR="$(dirname "$KERNEL_DIR")"
+KERN_IMG="/home/ryuzenn/out-memer/arch/arm64/boot/Image.gz-dtb"
+DTBO_IMG="/home/ryuzenn/out-memer/arch/arm64/boot/dtbo.img"
+export KBUILD_BUILD_USER="Xzyann"
+export KBUILD_BUILD_HOST="iyan"
+export PATH="/toolchain/rastamod-clang/bin:$PATH"
+export LD_LIBRARY_PATH="/toolchain/rastamod-clang/lib:$LD_LIBRARY_PATH"
+export KBUILD_COMPILER_STRING="$(/toolchain/rastamod-clang/bin/clang --version | head -n 1 | perl -pe 's/\((?:http|git).*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//' -e 's/^.*clang/clang/')"
+export out=
+
+# Functions
+clang_build () {
+    make -j4 O=$out \
+                          ARCH=arm64 \
+                          CC="clang" \
+                          AR="llvm-ar" \
+                          NM="llvm-nm" \
+					      LD="ld.lld" \
+			              AS="llvm-as" \
+						  STRIP="llvm-strip" \
+			              OBJCOPY="llvm-objcopy" \
+			              OBJDUMP="llvm-objdump" \
+						  CLANG_TRIPLE=aarch64-linux-gnu- \
+                          CROSS_COMPILE=aarch64-linux-gnu-  \
+                          CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+}
+
+# Build kernel
+make O=$out ARCH=arm64 $CONFIG > /dev/null
+echo -e "${bold}Compiling with CLANG${normal}\n$KBUILD_COMPILER_STRING"
+clang_build
+
+if ! [ -a $KERN_IMG ]; then
+    echo "${bold}Build error, Tolong Perbaiki Masalah Ini${normal}"
+    exit 1
 fi
-fi
-
-export KBUILD_BUILD_USER=adithya
-export KBUILD_BUILD_HOST=ghostrider_reborn
-
-if [[ $1 = "-r" || $1 = "--regen" ]]; then
-make O=out ARCH=arm64 $DEFCONFIG savedefconfig
-cp out/defconfig arch/arm64/configs/$DEFCONFIG
-exit
-fi
-
-if [[ $1 = "-c" || $1 = "--clean" ]]; then
-rm -rf out
-fi
-
-mkdir -p out
-make O=out ARCH=arm64 $DEFCONFIG
-
-echo -e "\nStarting compilation...\n"
-make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
-
-if [ -f "out/arch/arm64/boot/Image.gz-dtb" ] && [ -f "out/arch/arm64/boot/dtbo.img" ]; then
-echo -e "\nKernel compiled succesfully! Zipping up...\n"
-if ! git clone -q https://github.com/Xzyannn/AnyKernel3; then
-echo -e "\nCloning AnyKernel3 repo failed! Aborting..."
-exit 1
-fi
-cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
-cp out/arch/arm64/boot/dtbo.img AnyKernel3
-rm -f *zip
-cd AnyKernel3
-zip -r9 "../$ZIPNAME" * -x '*.git*' README.md *placeholder
-cd ..
-rm -rf AnyKernel3
-rm -rf out/arch/arm64/boot
 echo -e "\nCompleted in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) !"
-echo "Zip: $ZIPNAME"
-if ! [[ $HOSTNAME = "RyzenBeast" && $USER = "adithya" ]]; then
-curl --upload-file $ZIPNAME http://transfer.sh/$ZIPNAME; echo
-fi
+
+[[ -z ${ZIP} ]]
+
+# clone AnyKernel3
+if ! [ -d "AnyKernel3" ]; then
+    git clone https://github.com/Xzyannn/AnyKernel3
 else
-echo -e "\nCompilation failed!"
+    echo "${bold}Direktori AnyKernel3 Sudah Ada, Tidak Perlu di Clone${normal}"
 fi
+
+# ENV
+ZIP_DIR=$KERNEL_DIR/AnyKernel3
+VENDOR_MODULEDIR="$ZIP_DIR/modules/vendor/lib/modules"
+STRIP="aarch64-linux-gnu-strip"
+
+# Make zip
+make -C "$ZIP_DIR" clean
+wifi_modules
+cp "$KERN_IMG" "$DTBO_IMG" "$ZIP_DIR"/
+make -C "$ZIP_DIR" normal
+echo -e "\nCompleted in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) !"
