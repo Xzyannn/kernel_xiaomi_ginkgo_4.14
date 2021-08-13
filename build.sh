@@ -18,8 +18,8 @@ done
 CONFIG=vendor/ginkgo-perf_defconfig
 KERNEL_DIR=$(pwd)
 PARENT_DIR="$(dirname "$KERNEL_DIR")"
-KERN_IMG="/home/ryuzenn/out-memer/arch/arm64/boot/Image.gz-dtb"
-DTBO_IMG="/home/ryuzenn/out-memer/arch/arm64/boot/dtbo.img"
+KERN_IMG="/out-a11/arch/arm64/boot/Image.gz-dtb"
+DTBO_IMG="/out-a11/arch/arm64/boot/dtbo.img"
 export KBUILD_BUILD_USER="Xzyann"
 export KBUILD_BUILD_HOST="iyan"
 export PATH="/toolchain/rastamod-clang/bin:$PATH"
